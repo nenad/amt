@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"net/http/cookiejar"
 	"net/url"
+	"os"
+	"strconv"
 
 	"github.com/PuerkitoBio/goquery"
+	bot "github.com/go-telegram-bot-api/telegram-bot-api"
 
 	"log"
 	"net/http"
@@ -22,6 +25,17 @@ func main() {
 		Jar:     cookies,
 	}
 
+	telegramToken := os.Getenv("TELEGRAM_TOKEN")
+	if telegramToken == "" {
+		log.Fatal("TELEGRAM_TOKEN is empty")
+	}
+
+	telegramId, err := strconv.ParseInt(os.Getenv("TELEGRAM_ID"), 10, 64)
+	if telegramId == 0 || err != nil {
+		log.Fatal("TELEGRAM_ID is empty")
+	}
+
+
 	req, err := http.NewRequest("GET", fahrerlaubnissbehörde, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -32,6 +46,12 @@ func main() {
 		log.Fatal(err)
 	}
 
+	telegram, err := bot.NewBotAPI(telegramToken)
+	if err != nil {
+		log.Fatalf("Could not initialize telegram: %s", err)
+	}
+
+
     for {
 		doc, err := goquery.NewDocumentFromReader(resp.Body)
 		if err != nil {
@@ -40,9 +60,12 @@ func main() {
 
 		free := getBookableAppointments(doc)
 		if len(free) != 0 {
-			fmt.Println("FOUND APPOINTMENTS!")
             for _, a := range free {
-                fmt.Println(a.Text())
+				msg := bot.NewMessage(telegramId, fmt.Sprintf("Found appointments: %s", a.Text()))
+				_, err = telegram.Send(msg)
+				if err != nil {
+					log.Fatalf("Could not send a message: %s", err)
+				}
 			}
             break
 		}
