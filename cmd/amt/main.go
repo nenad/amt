@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"github.com/joho/godotenv"
+	"github.com/nenad/amt/internal/amts/fahrerlaubnisbehorde"
 	"github.com/nenad/amt/internal/amts/lea"
 	"github.com/nenad/amt/internal/config"
 	"github.com/nenad/amt/internal/telegram"
@@ -11,7 +12,7 @@ import (
 )
 
 var (
-	validServices = []string{"lea"}
+	validServices = []string{"lea", "fahrerlaubnisbehorde"}
 	envFlag       = flag.String("env", ".env", "Path to .env file")
 	serviceFlag   = flag.String("service", "lea", "Service to use. Valid: "+strings.Join(validServices, ", "))
 )
@@ -40,6 +41,8 @@ func main() {
 		if err = leaScenario.Run(cfg.Lea); err != nil {
 			panic("Error running LEA scenario: " + err.Error())
 		}
+	case "fahrerlaubnisbehorde":
+		fahrerlaubnisbehorde.Run(cfg.Telegram)
 	default:
 		panic("Invalid service; valid: " + strings.Join(validServices, ","))
 	}
