@@ -32,13 +32,23 @@ func (s LeaScenario) Run(lea config.Lea) error {
 	// each action, making it easier to inspect what your code is doing.
 	browser := rod.New().ControlURL(u).Trace(true).MustConnect().SlowMotion(time.Millisecond * 200)
 	attempt := 0
+	page := browser.MustPage("https://google.com")
+
+	go page.EachEvent(func(e *proto.PageJavascriptDialogOpening) {
+		restore := page.EnableDomain(&proto.PageEnable{})
+		defer restore()
+		_ = proto.PageHandleJavaScriptDialog{
+			Accept:     true,
+			PromptText: "",
+		}.Call(page)
+	})()
+
 	for {
 		l := log.New(os.Stdout, fmt.Sprintf("lea-%d ", attempt), log.LstdFlags)
 		if err := browser.SetCookies(nil); err != nil {
 			panic("Could not clear cookies: " + err.Error())
 		}
-
-		page := browser.MustPage(homeURL).MustWaitDOMStable()
+		page = page.MustNavigate(homeURL).MustWaitDOMStable()
 
 		//go func() {
 		//	for {
@@ -137,29 +147,34 @@ func (s LeaScenario) Run(lea config.Lea) error {
 			}
 		}
 
+		if !success {
+			continue
+		}
+
 		// We are on the calendar view, great success! But the war is still not over.
 		// We need to have appointments in the select.
-		//appointmentSelector := page.MustElement("#xi-sel-3")
-		//options := appointmentSelector.MustElements("option")
-		//success = len(options) > 2
+		appointmentSelector := page.MustElement("#xi-sel-3")
+		options := appointmentSelector.MustElements("option")
+		if options.Last().MustText() == "" {
+			// No appointments available, rerun the loop
+			continue
+		}
 		//Select the first available appointment
 		//appointmentSelector.MustSelect(options[2].MustText())
 
-		if success {
-			info := page.MustInfo()
-			path := "/tmp/screenshot-browser.png"
-			_ = page.MustScreenshotFullPage(path)
+		info := page.MustInfo()
+		path := "/tmp/screenshot-browser.png"
+		_ = page.MustScreenshotFullPage(path)
 
-			err := beeep.Notify("Appointment ready!", "", "")
-			if err != nil {
-				l.Println("Could not send notification: ", err)
-			}
-
-			if err := s.TelegramClient.Send(fmt.Sprintf("Appointment ready: %s", info.URL), path); err != nil {
-				l.Println("Could not send telegram notification: ", err)
-			}
-			return nil
+		err = beeep.Notify("Appointment ready!", "", "")
+		if err != nil {
+			l.Println("Could not send notification: ", err)
 		}
+
+		if err := s.TelegramClient.Send(fmt.Sprintf("Appointment ready: %s", info.URL), path); err != nil {
+			l.Println("Could not send telegram notification: ", err)
+		}
+		return nil
 	}
 
 	return nil
