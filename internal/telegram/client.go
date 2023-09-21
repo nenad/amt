@@ -24,12 +24,18 @@ func New(token string, chats ...int64) (*Client, error) {
 }
 
 // Send a message to the chats
-func (c *Client) Send(text string) error {
+func (c *Client) Send(text string, photo string) error {
 	for _, chat := range c.chats {
 		msg := tgbotapi.NewMessage(chat, text)
+		if photo != "" {
+			photoMsg := tgbotapi.NewPhoto(chat, tgbotapi.FilePath(photo))
+			if _, err := c.bot.Send(photoMsg); err != nil {
+				return fmt.Errorf("could not send photo: %s", err)
+			}
+		}
 		_, err := c.bot.Send(msg)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not send text: %s", err)
 		}
 	}
 	return nil
